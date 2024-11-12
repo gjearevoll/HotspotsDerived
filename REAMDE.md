@@ -33,9 +33,9 @@ and another which comparies the observed species data from the fieldwork and the
 This directory involves one script which imports our species richness estimates and then turns them into layers of a raster. It
 then combines them with a large range of other raster data (see the individual README file for more details) so that these
 can easily be visualised in conjunction with our Hotspots data. The data folder here includes different subfolders, each with external
-data that is added as layers of our final raster.
+data that is added as layers of our final raster. Some of the raw data has been added, some is simply too big to fit on GitHub.
 
-### Model analysis
+### Covariate analysis
 
 Here we download all our reduced models for a species group in order to find the overall effect of each environmental covariate
 on the entire species group. The script simply involves compiling the effects across models and applying a density function to each
@@ -50,4 +50,4 @@ script above as a layer of this output.
 
 The model outputs which we get from the INLA-reliant models are large, often around half a gigabyte. When one of these model outputs
 is required for every 10 species  segment across 1500 species, they start making any model-wide operations excessively slow. As such,
-here we apply a function that imports each model, cuts out a huge amount of unnecessary data, and 
+here we apply a function that imports each model, cuts out a huge amount of unnecessary data, and saves space.
