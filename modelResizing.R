@@ -6,17 +6,18 @@ source("functions/reset_environments.R")
 
 # Get every file in there with vascular plants involved
 dirsWithModel <- list.files(hotspotsDir, recursive = TRUE, pattern = "*richnessModel.rds", full.names = TRUE)
-dirsWithModelPlants <- dirsWithModel[grep("vascularPlants", dirsWithModel)]
+taxaWithModels <- gsub(paste0(hotspotsDir, "/"), "", unique(gsub('[[:digit:]]+', '', sub("\\/.*", "", taxaWithModels))))
 
 
-for (i in seq_along(dirsWithModelPlants)[92]) {
-  modelName <- dirsWithModelPlants[[i]]
-  richnessModel <- readRDS(modelName)
-  #obj_size(richnessModel)
-  reducedModel <- reset_environments(richnessModel)
-  rm("richnessModel")
-  fileName <- paste0("localPredictions/data/modelObjects/reducedModel", i, ".rds")
-  saveRDS(reducedModel, fileName)
-  if (i %% 10 == 0) cat(i, " models complete")
+for (taxa in taxaWithModels) {
+  dirsWithModelTaxa <- dirsWithModel[grep(taxa, dirsWithModel)]
+  for (i in seq_along(dirsWithModelTaxa)) {
+    modelName <- dirsWithModelTaxa[[i]]
+    richnessModel <- readRDS(modelName)
+    #obj_size(richnessModel)
+    reducedModel <- reset_environments(richnessModel)
+    saveRDS(reducedModel, modelName)
+    if (i %% 10 == 0) cat(i, " models complete")
+  }
 }
-
+  
