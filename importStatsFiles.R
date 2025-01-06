@@ -4,4 +4,7 @@ sourceDirectory <- "../BioDivMapping/data/run_2024-10-11/modelOutputs/processedO
 filesToImport <- c(list.files(sourceDirectory, pattern = "final", recursive = TRUE, full.names = TRUE),
                    list.files(sourceDirectory, pattern = "bias", recursive = TRUE, full.names = TRUE))
 
+if (!dir.exists("data/modelOutputs")) {
+  dir.create("data/modelOutputs")
+}
 file.copy(filesToImport, "data/modelOutputs")
