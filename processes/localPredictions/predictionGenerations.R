@@ -49,7 +49,8 @@ mesh <- list(cutoff = 176, max.edge=c(26850, 175903) * 2, offset= c(1760, 1200) 
 # Import species which we need data for
 fieldWorkResults <- readRDS("localPredictions/data/fieldWorkResults.RDS") %>%
   select(-survey)
-speciesToRun <- colnames(fieldWorkResults)[2:435]
+speciesMeans <- colMeans(st_drop_geometry(fieldWorkResults[,2:435]))
+speciesToRun <- names(speciesMeans)[speciesMeans > 0.01]
 
 # Check extents of various groups
 lapply(unique(fieldWorkResults$group), FUN = function(g) {
@@ -58,17 +59,17 @@ lapply(unique(fieldWorkResults$group), FUN = function(g) {
 
 # Everything starts here
 # Give list of locals
-boxedLocations <-list(c(183000, 6852000, 190000, 6870000) |>
+boxedLocations <-list(c(183000, 6852000, 190000, 6870000) |> #7 by 18
                         setNames(c("west", "south", "east", "north")),
-                      c(218000, 6585000, 245000, 6600000) |>
+                      c(218000, 6585000, 245000, 6600000) |> #27 by 15
                         setNames(c("west", "south", "east", "north")),
-                      c(-60000, 6640000, -40000, 6670000) |>
+                      c(-60000, 6640000, -40000, 6670000) |> #20 by 30
                         setNames(c("west", "south", "east", "north")),
-                      c(233000, 7070000, 260000, 7100000) |>
+                      c(233000, 7070000, 260000, 7100000) |> #27 by 30
                         setNames(c("west", "south", "east", "north")),
-                      c(334000, 6951000, 345000, 6990000) |>
+                      c(334000, 6951000, 345000, 6990000) |> #10 by 40
                         setNames(c("west", "south", "east", "north")),
-                      c(260000, 7024000, 295000, 7040000) |>
+                      c(260000, 7024000, 295000, 7040000) |> #35 by 16
                         setNames(c("west", "south", "east", "north")))
 
 # Get env data in
@@ -128,7 +129,9 @@ modelOutputs <- 'Richness'
 
 # timeStart <- Sys.time()
 
-for(i in seq_along(models)){
+# Have done up to 138
+
+for(i in seq_along(models)[138:145]){
   
   predictionInterceptDataset <- "ANOData"
   focalSampleSize <- 0.25
@@ -144,10 +147,6 @@ for(i in seq_along(models)){
   # indentify if bias field
   biasField <- !is.null(model$summary.random$sharedBias_biasField) | !is.null(model$spatCovs$biasFormula)
   # identify covariates used in model 
-  # covs <- rownames(model$summary.fixed) %>%
-  #     stringr::str_subset(paste0("^(", paste(speciesIn, collapse = "|"), ")")) %>%
-  #     stringr::str_remove(paste0("^(", paste(speciesIn, collapse = "|"), ")_")) %>% 
-  #     unique
   covs <- model$spatCovs$name
   # identify categorical covariate factors 
   catCovCats <- model$summary.random[model$summary.random %>% names %>% 
@@ -170,7 +169,7 @@ for(i in seq_along(models)){
     pData <- pGrid %>% 
       dplyr::select(all_of(covs)) %>% 
       as.data.frame(na.rm = FALSE) %>% 
-      replicate(length(speciesIn) + 1, ., simplify = FALSE) %>% 
+      replicate(length(speciesUsed) + 1, ., simplify = FALSE) %>% 
       reduce(cbind) %>% 
       bind_cols(geometries[[p]]) %>% 
       st_sf() %>% 
@@ -178,7 +177,7 @@ for(i in seq_along(models)){
     
     # update names
     names(pData) <- c(covs,
-                      paste(rep(speciesIn, each = length(covs)), 
+                      paste(rep(speciesUsed, each = length(covs)), 
                             covs, sep = "_"), "geometry")
     return(pData)
   })
@@ -190,56 +189,30 @@ for(i in seq_along(models)){
   }
   
   # Generate & convert & Save model/predicts (currently for all species grouped)
-  for(type in modelOutputs){
-    ret <- lapply(seq_along(predData), FUN = function(preds) {
-      split(1:nrow(predData[[preds]]), seq(1, ceiling(nrow(predData[[preds]]) / 5000)))
+  
+  ret <- lapply(seq_along(predData), FUN = function(preds) {
+    split(1:nrow(predData[[preds]]), seq(1, ceiling(nrow(predData[[preds]]) / 5000)))
+  })
+  predictionsJoined <- lapply(seq_along(predData), FUN = function(pd) {
+    pred <- lapply(ret[[pd]], function(x){
+      richnessEst <- intSDM:::obtainRichness(model, predictionData = predData[[pd]][x, ], 
+                                             predictionIntercept = predictionInterceptDataset, sampleSize = focalSampleSize)
+      richnessEst$Probabilities
     })
-    
-    if(type == "Bias" && biasField) {
-      
-      biasJoined <- lapply(seq_along(predData), FUN = function(pd) {
-        pred <- lapply( ret[[pd]], function(x) {
-          biasEst <- predict(model, data = predData[[pd]][x,], bias = TRUE, mesh = mesh)
-          return(biasEst)
-        })
-        spPred <- lapply(pred, function(x){
-          res <-   x[[1]][[1]]
-        })%>%
-          do.call("rbind", .)%>%
-          select("mean")
-        spPred <- rasterize(spPred, predGrid[[pd]], names(spPred)[!names(spPred) %in% names(predData[[pd]])])
-      })
-      
-      biasMerged <- do.call(merge, biasJoined)
-      writeRaster(biasMerged, paste0("data/run_", dateSaved, "/", oneTaxa, "/",type,i,"_",predRes, ".tiff"), overwrite = TRUE)
-      
-    } else if(type == "Richness") {
-      predictionsJoined <- lapply(seq_along(predData), FUN = function(pd) {
-        pred <- lapply(ret[[pd]], function(x){
-          richnessEst <- intSDM:::obtainRichness(model, predictionData = predData[[pd]][x, ], 
-                                                 predictionIntercept = predictionInterceptDataset, sampleSize = focalSampleSize)
-          richnessEst$Probabilities
-        })
-      })
-      
-      species <- names(predictionsJoined[[1]][[1]])
-      for(sp in species){
-        print(sp)
-        predictionsMade <- lapply(seq_along(predictionsJoined) , FUN = function(pd) {
-          spPred <- lapply(predictionsJoined, function(x){
-            res <-   x[[1]][[sp]]
-          })%>%
-            do.call("rbind", .)%>%
-            select("mean", "sd")
-          spPred <- rasterize(spPred, predGrid[[pd]], names(spPred)[!names(spPred) %in% names(predData[[pd]])])
-        })
-        predictionsMerged <- do.call(merge, predictionsMade)
-        writeRaster(predictionsMerged, paste0("localPredictions/data/predictions/resolution", predRes, "/", sp, ".tiff"), overwrite = TRUE)
-        
-      }
-      
-    }
-    
+  })
+  
+  for(sp in speciesUsed){
+    print(sp)
+    predictionsMade <- lapply(seq_along(predictionsJoined) , FUN = function(pd) {
+      spPred <- lapply(predictionsJoined[[pd]], function(x){
+        res <-   x[[sp]]
+      })%>%
+        do.call("rbind", .)%>%
+        select("mean", "sd")
+      spPred <- rasterize(spPred, predGrid[[pd]], names(spPred)[!names(spPred) %in% names(predData[[pd]])])
+    })
+    predictionsMerged <- do.call(merge, predictionsMade)
+    writeRaster(predictionsMerged, paste0("localPredictions/data/predictions/resolution", predRes, "/", sp, ".tiff"), overwrite = TRUE)
   }
+  
 }
-
