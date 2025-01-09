@@ -19,16 +19,15 @@ for (folder in overlays) {
 ### Construct hotspots ####
 ###---------------------###
 
+# Upload layer created in processes/overlays/createSpeciesHotspots
 hotspotFiles <- list.files("overlays/data/hotspots/", pattern = "rikhet.tiff$", full.names = TRUE)
 hotspotLayers <- rast(hotspotFiles)
-
-
 
 ###-----------------###
 ### Construct bias ####
 ###-----------------###
 
-# Now let's get high richness and low bias
+# Now let's get high richness and low sampling intensity - also created in processes/overlays/createSpeciesHotspots
 biasFiles <- list.files("overlays/data/hotspots", full.names = TRUE, pattern = "intensitet.tiff$")
 biasCompiled <- rast(biasFiles)
 names(biasCompiled) <- paste0(names(biasCompiled), "_innsamlingsintensitet")
@@ -38,6 +37,7 @@ names(biasCompiled) <- paste0(names(biasCompiled), "_innsamlingsintensitet")
 ### Protected areas ####
 ###------------------###
 
+# Download verneomrader from geonorge
 protected_areas_url <- paste0("https://nedlasting.geonorge.no/geonorge/Natur/ProtectedSites/GML/")
 keyDirectory <- "overlays/data/protectedAreas"
 
@@ -77,6 +77,7 @@ names(protectedAreas) <- "protectedAreas"
 ### Municipal regions ####
 ###--------------------###
 
+# These regions are available from the csmaps package
 if (!("csmaps" %in% installed.packages())) {install.packages("csmaps")}
 library(csmaps)
 
@@ -163,10 +164,13 @@ names(waterRegions) <- "waterRegions"
 ### Carbon storage ####
 ###-----------------###
 
+# These are large files and need to be downloaded locally.
+# Here is the link to the data: https://cmr.earthdata.nasa.gov/search/concepts/C2764708636-ORNL_CLOUD.html  
 belowGroundCarbon <- rast("overlays/data/carbonStorage/belowground_biomass_carbon_2010.tif")
 belowGroundCarbonNorway <- terra::project(belowGroundCarbon, hotspotLayers, method = "average")
 belowGroundCarbonNorway <- crop(belowGroundCarbonNorway, hotspotLayers[[1]], mask = T)
 names(belowGroundCarbonNorway) <- "belowgroundcarbon"
+
 aboveGroundCarbon <- rast("overlays/data/carbonStorage/aboveground_biomass_carbon_2010.tif")
 aboveGroundCarbonNorway <- terra::project(aboveGroundCarbon, hotspotLayers, method = "average")
 aboveGroundCarbonNorway <- crop(aboveGroundCarbonNorway, hotspotLayers[[1]], mask = T)
@@ -176,7 +180,9 @@ names(aboveGroundCarbonNorway) <- "abovegroundcarbon"
 ### Hovedokosystemer ####
 ###-------------------###
 
-# This is a massive file so once you've downloaded and rasterised it, for god's sake save it
+# This is a massive file so once you've downloaded and rasterised it, for god's sake save it.
+# The file is available through Miljodirektoratet at
+# https://kartkatalog.miljodirektoratet.no/Dataset/Details/3069
 
 if (length(list.files("overlays/data/hovedokosystemer")) == 0) {
   a <- st_read("overlays/data/hovedokosystemer/Hovedokosystem_nedlasting/Hovedokosystem.gdb") %>%
@@ -199,6 +205,8 @@ if (length(list.files("overlays/data/hovedokosystemer")) == 0) {
 ### Inngrepsfrie omrader ####
 ###-----------------------###
 
+# This one is also available online from Miljodirektoratet:
+# https://kartkatalog.miljodirektoratet.no/Dataset/Details/100
 inngrepsfrieOmrader <- read_sf("overlays/data/inngrepsfrieOmrader/statusPolygon.shp")
 ifVect <- terra::project(vect(inngrepsfrieOmrader), hotspotLayers)
 ifRaster <- terra::rasterize(ifVect, hotspotLayers, field = "vsone")
@@ -209,6 +217,10 @@ names(ifRaster) <- "intactAreas"
 ###-----------------------------------###
 ### Import CORINE land cover changes ####
 ###-----------------------------------###
+
+# For this one you'll need to sign up to Copernicus' data service. one you've done that you'll find the file at
+# the link below, which you'll need to unzip locally.
+# https://land.copernicus.eu/en/products/corine-land-cover/lcc-2012-2018
 
 #unzip("overlays/data/landChangeCorine/Results/u2018_cha1218_v2020_20u1_raster100m.zip", exdir = "overlays/data/landChangeCorine")
 corineLandChange <- rast("overlays/data/landChangeCorine/u2018_cha1218_v2020_20u1_raster100m/DATA/U2018_CHA1218_12_V2020_20u1.tif")
