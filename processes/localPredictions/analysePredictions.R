@@ -1,3 +1,10 @@
+
+#### PREDICTION VS. FIELDWORK COMPARISON ####
+
+###-----------------###
+### 1. Data import ####
+###-----------------###
+
 #### Prediction compilation
 library(terra)
 library(dplyr)
@@ -14,8 +21,14 @@ fieldWorkResults <- readRDS("localPredictions/data/fieldWorkResults.RDS")
 processedSpecies <- gsub(".tiff", "", list.files("localPredictions/data/predictions/resolution500"))
 species <- intersect(processedSpecies, names(fieldWorkResults))
 
+###-----------------------###
+### 2. Prediction import ####
+###-----------------------###
+
 # Import relevant species
 resolutions <- c("250", "500", "1000")
+
+# Organise different resolutiosn of predictions into list objects
 
 datasets <- lapply(resolutions, FUN = function(x) {
 
@@ -46,10 +59,11 @@ ggplot()  +
 
 
 ### First we get two tables, one showing species richness at all points and another showing species presences
-datasets[[1]]
-
 fieldWork <- readRDS("localPredictions/data/fieldWorkResultsWide.RDS")
 
+###----------------------------------###
+### 3. Produce comparative datasets ####
+###----------------------------------###
 
 # Import predictive data
 comparisonTables <- lapply(resolutions, FUN = function(x) {
@@ -118,7 +132,9 @@ comparisonTables <- lapply(resolutions, FUN = function(x) {
   return(list(richness = mergedNumbers, species = speciesTable))
 }) |> setNames(paste0("resolution",resolutions))
 
-
+###-------------------------------------###
+### 3. Compare fieldwork with datasets ####
+###-------------------------------------###
 
 # Check which species it actually makes a difference for
 availableSpecies <- intersect(intersect(names(comparisonTables$resolution1000$species),
