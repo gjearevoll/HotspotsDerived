@@ -4,21 +4,20 @@
 ###----------------------------------------###
 library(dplyr)
 library(terra)
+library(sf)
 
-sourceDirectory <- "../BioDivMapping/data/run_2024-10-11/modelOutputs/processedOutputs/"
+sourceDate <- "2025-01-06"
+sourceDirectory <- paste0("../BioDivMapping/data/run_",sourceDate,"/modelOutputs/processedOutputs/")
 
 ###--------------------------------###
 ### 1. Set up data for processing ####
 ###--------------------------------###
 
 ### Get names of all taxa we currently have finished data for
-taxaNames <- unique(gsub(".tiff", "",
-                         gsub("final.tiff", "", 
-                              gsub("allspeciesstats_", "", 
-                                   list.files(sourceDirectory, pattern = "allspecies")))))
-
-# Remove bird names
-taxaNames <- taxaNames[c(1:9, 11:16)]
+taxaNames <- c("insects", "fungi", "lichens", "vascularPlants", "birds")
+insectList <- c("aquaticInsects", "beetles", "bugs", "butterfliesMoths", "cockroaches", "earwigs", "flies", 
+                "grasshopperLikeInsects", "hymenopterans", "netWingedInsects", "scorpionflies", "snakeflies",
+                "spiders")
 
 # Import each taxa and get names of species therein
 speciesLists <- lapply(taxaNames, FUN = function(taxa) {
@@ -27,24 +26,19 @@ speciesLists <- lapply(taxaNames, FUN = function(taxa) {
   nameList
 }) |> setNames(taxaNames)
 
-# Check speciesDataProcessed file
-dataMatching <- data.frame(taxa = taxaNames, grouping = c("AmphibiansReptiles", "Insects", "Bats", "Insects", "Birds", 
-                                                          "Insects", "Insects", "Insects", "Fungi", "Insects", "Fungi",
-                                                          "Mammals", "Mosses", "Insects", "Plants"))
-
 ###--------------------------------###
 ### 2. Set up data for processing ####
 ###--------------------------------###
 
 # For now, do this without a loop
 finalStats <- lapply(taxaNames, FUN = function(x) {
-  grouping <- dataMatching$grouping[dataMatching$taxa == x]
   nameList <- speciesLists[[x]]
   
   # Download correct species data
-  print(paste0("Loading ", grouping, " processed data for ", x))
-  focalData <- readRDS(paste0("data/processedData/speciesDataProcessed", grouping, ".RDS"))
-  
+  print(paste0("Loading processed data for ", x))
+  nameChange <- paste(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)), sep="")
+  focalData <- readRDS(paste0("data/processedData/speciesDataProcessed", nameChange, ".RDS"))
+
   # Dataset types
   datasetTypes <- sapply(focalData, FUN= function(dt) {
     dt$dataType[1]
@@ -57,9 +51,9 @@ finalStats <- lapply(taxaNames, FUN = function(x) {
   stats <- data.frame(numberSpecies, numberDatasets)
   
   # Process and return only relevant data
-  print(paste0("Reducing ", grouping, " data for ", x))
+  print(paste0("Reducing data for ", x))
   focalDataFrame <- do.call(rbind, lapply(1:length(focalData), FUN = function(d) {
-    data <- focalData[[d]]
+    data <- st_drop_geometry(focalData[[d]])
     reducedData <- data[,c("simpleScientificName", "taxa", "dataType")] %>%
       filter(simpleScientificName %in% nameList)
     if (nrow(reducedData) == 0) {return(NA)}
@@ -68,12 +62,18 @@ finalStats <- lapply(taxaNames, FUN = function(x) {
   })) %>%
     as.data.frame()
   
+  if (colnames(focalDataFrame)[1] == "V1") {return(NA)}
+  
   rm("focalData")
   gc()
   
   # Now produce species tallies
   focalDataSpecies <- focalDataFrame %>%
-    filter(taxa %in% taxa) 
+    filter(taxa %in% x) 
+  if (x == "insects") {
+    focalDataSpecies <- focalDataFrame %>%
+      filter(taxa %in% insectList) 
+  }
   
   focalDataCountByTypes <- focalDataSpecies %>%
     group_by(dataType) %>%
@@ -89,5 +89,5 @@ finalStats <- lapply(taxaNames, FUN = function(x) {
 ) |> setNames(taxaNames)
 
 # Save everything
-saveRDS(finalStats, "speciesNumbers/data/speciesDataCounts.RDS")
+saveRDS(finalStats, paste0("processes/speciesNumbers/data/speciesDataCounts_",sourceDate,".RDS"))
 
