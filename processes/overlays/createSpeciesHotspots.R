@@ -4,64 +4,91 @@ library(dplyr)
 library(sf)
 focalTaxa <- read.csv("data/focalTaxa.csv")
 
+dateUsed <- "2025-01-06"
 
 ###---------------------###
 ### Construct hotspots ####
 ###---------------------###
 
 # Get table to merging all taxa together
-finalFiles <- list.files("data/modelOutputs", pattern = "final")
+finalFiles <- list.files(paste0("data/modelOutputs/run_",dateUsed), pattern = "final")
 filePatterns <- unique(gsub("final.tiff", "",gsub(".*_","", finalFiles)))
-allSIFiles <- list.files("data/modelOutputs", pattern = "bias")
-groupingDF <- data.frame(speciesGroup = filePatterns, grouping = c("insekter", NA, "insekter", "fugler",
-                                                                   "insekter", "insekter", "insekter", "sopp", NA,
-                                                                   "insekter", "lav", NA, NA,
-                                                                   "edderkopper", "karplanter",
-                                                                   NA, NA))
-groupingDF <- groupingDF[!is.na(groupingDF$grouping),]
+allSIFiles <- list.files(paste0("data/modelOutputs/run_",dateUsed), pattern = "density")
 
+norwayBorder2 <- vect(sf::read_sf("../BioDivMapping/data/external/norge_border/Noreg_polygon.shp"))
 
+translations <- read.csv("data/taxaTranslations.csv")
+translations$groupsNynorsk[translations$groups == "Insects"] <- "Insekt og edderkoppdyr"
 
-# Get all available taxa
-for (taxa in unique(groupingDF$grouping)) {
-  allRelavantTaxa <- groupingDF$speciesGroup[groupingDF$grouping %in% taxa]
-  allRelevantFiles <- finalFiles[grepl(paste0(allRelavantTaxa, collapse = "|"), finalFiles)]
-  
-  for (type in c("allspecies", "ansvarsarter", "threatenedspecies")) {
-    typeFiles <- allRelevantFiles[grep(type, allRelevantFiles)]
-    if (length(typeFiles) == 0) {next}
-    combinedRaster <- rast(paste0("data/modelOutputs/", typeFiles)) 
-    statsRaster <- sum(combinedRaster[[names(combinedRaster) == "skalertRikhet"]]) |> 
-      setNames("rikhet")
-    
-    norwayBorder <- st_union(csmaps::nor_municip_map_b2024_default_sf)
-    norwayBorderProjected <- fillHoles(terra::project(vect(norwayBorder), statsGrouped[[1]]$stats))
-    statsRaster <- crop(statsRaster, norwayBorderProjected, mask = T)
-    
-    quantiles <- quantile(values(statsRaster[["rikhet"]]), c(0, 0.9, 0.95, 0.99, 1), na.rm = TRUE)
-    categorisedRichness <- classify(statsRaster[["rikhet"]], 
-                                    rcl=quantiles)
-    levels(categorisedRichness) <- data.frame(ID=0:3, label=c("1", "2", "3", "4"))
-    names(categorisedRichness) <- paste(taxa, type, sep = "_")
-    print(paste0("Saving ", type, " for ", taxa))
-    writeRaster(categorisedRichness, paste0("overlays/data/hotspots/", taxa, "_", type, "_rikhet.tiff"), 
-                overwrite = TRUE)
-  
-  }
-  
- 
-  allRelevantSIFiles <- allSIFiles[grepl(paste0(allRelavantTaxa, collapse = "|"), allSIFiles)]
-  combinedSIRaster <- rast(paste0("data/modelOutputs/", allRelevantSIFiles)) 
-  statsRaster <- sum(combinedSIRaster[[names(combinedSIRaster) == "skalertInnsamlingsintensitet"]]) |> 
-    setNames("innsamlingsIntensitet")
-  quantiles <- quantile(values(statsRaster[["innsamlingsIntensitet"]]), c(0, 0.9, 0.95, 0.99, 1), na.rm = TRUE)
-  categorisedSI <- classify(statsRaster[["innsamlingsIntensitet"]], 
-                                  rcl=quantiles)
-  levels(categorisedSI) <- data.frame(ID=0:3, label=c("1", "2", "3", "4"))
-  names(categorisedSI) <- paste(taxa, sep = "_")
-  print(paste0("Saving bias for ", taxa))
-  writeRaster(categorisedSI, paste0("overlays/data/hotspots/", taxa, "_innsamlingsintensitet.tiff"), 
-              overwrite = TRUE)
-  
+firstlow <- function(x) {
+  substr(x, 1, 1) <- tolower(substr(x, 1, 1))
+  x
 }
 
+baseRaster <- rast(paste0("data/modelOutputs/run_", dateUsed, "/", finalFiles[1])) 
+norwayBorderProjected <- terra::project(norwayBorder2, baseRaster)
+
+# Get all available taxa
+hotspotList <- list()
+biasList <- list()
+#for (taxa in unique(groupingDF$grouping)) {
+for (taxa in filePatterns) {
+  allRelevantFiles <- finalFiles[grepl(taxa, finalFiles)]
+  allRelevantSIFiles <- allSIFiles[grep(taxa, allSIFiles)]
+  
+  types <- if (taxa %in% c("groundNesters", "waders", "woodpeckers")) "allspecies" else c("allspecies", "ansvarsarter", "threatenedspecies")
+  
+  for (type in types) {
+    typeFiles <- allRelevantFiles[grep(type, allRelevantFiles)]
+    if (length(typeFiles) == 0) {next}
+    statsRaster <- rast(paste0("data/modelOutputs/run_", dateUsed, "/", typeFiles)) 
+    if(ext(statsRaster) != ext(rast(baseRaster))) {
+      statsRaster <- project(statsRaster, rast(baseRaster))
+    }
+    statsRaster <- crop(statsRaster, norwayBorderProjected, mask = T)
+
+    # Create quantiles
+    quantiles <- quantile(values(statsRaster[["skalertRikhet"]]), c(0.9, 0.95, 0.99), na.rm = TRUE)
+    hotspotsRaster1 <- c(ifel(statsRaster$skalertRikhet > quantiles[1], TRUE, FALSE),
+                         ifel(statsRaster$skalertRikhet > quantiles[2], TRUE, FALSE),
+                         ifel(statsRaster$skalertRikhet > quantiles[3], TRUE, FALSE))
+      
+    names(hotspotsRaster1) <- c("HS3", "HS2", "HS1")
+    print(paste0("Saving ", type, " for ", taxa))
+    # writeRaster(hotspotsRaster1, paste0("processes/overlays/data/hotspots/", taxa, "_", type, "_rikhet.tiff"), 
+    #             overwrite = TRUE)
+    
+    # Create Norwegian name and save for upload
+    typeNorsk <- ifelse(type == "allspecies", "alle", ifelse(type == "ansvarsarter", "ansvar", "trua"))
+    nameNorsk <- firstlow(gsub(" ", "-", translations$nynorsk[translations$engelsk == taxa]))
+    rasterName <- paste0("data/forUpload/", typeNorsk, "-",nameNorsk,"-hotspots_norge_2025_32633.tiff")
+    writeRaster(hotspotsRaster1, rasterName, overwrite = TRUE)
+    
+    # Add version to large raster for local use
+    names(hotspotsRaster1) <-  paste0(taxa, "_", type, "_", c("HS3", "HS2", "HS1"))
+    hotspotList <- c(hotspotList, hotspotsRaster1)
+    
+    # Import density file
+    typeFilesSI <- allRelevantSIFiles[grep(type, allRelevantSIFiles)]
+    statsRaster <- rast(paste0("data/modelOutputs/run_", dateUsed, "/", typeFilesSI)) 
+    if(ext(statsRaster) != ext(rast(baseRaster))) {
+      statsRaster <- project(statsRaster, rast(baseRaster))
+    }
+    
+    # Save for upload
+    print(paste0("Saving bias for ", taxa))
+    SIRasterName <- paste0("data/forUpload/", typeNorsk, "-",nameNorsk,"-innsamlingsintensitet_norge_2025_32633.tiff")
+    writeRaster(project(statsRaster, hotspotsRaster1), SIRasterName,
+                overwrite = TRUE)
+    
+    # Rename and save for local use
+    names(statsRaster) <-  paste0(taxa, "_", type, "_bias")
+    biasList <- c(biasList, statsRaster)
+  }
+  
+}
+hotspots <- do.call(c, hotspotList)
+writeRaster(hotspots, "data/allHotspots.tiff", overwrite = TRUE)
+
+bias <- do.call(c, biasList)
+writeRaster(bias, "data/allBiases.tiff", overwrite = TRUE)

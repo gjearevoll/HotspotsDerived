@@ -12,26 +12,23 @@ focalTaxa <- read.csv("data/focalTaxa.csv")
 overlays <- c("carbonStorage", "hovedokosystemer", "inngrepfrieOmrader", "kulturminner", "naturtyper",
               "protectedAreas", "waterRegions")
 for (folder in overlays) {
-  if (!dir.exists(paste0("overlays/data/", folder))) {dir.create(paste0("overlays/data/", folder))}
+  if (!dir.exists(paste0("processes/overlays/data/", folder))) {dir.create(paste0("processes/overlays/data/", folder))}
 }
 
+translations <- read.csv("data/taxaTranslations.csv")
+
 ###---------------------###
-### Construct hotspots ####
+### Download hotspots ####
 ###---------------------###
 
-# Upload layer created in processes/overlays/createSpeciesHotspots
-hotspotFiles <- list.files("overlays/data/hotspots/", pattern = "rikhet.tiff$", full.names = TRUE)
-hotspotLayers <- rast(hotspotFiles)
+hotspotLayers <- rast("data/allHotspots.tiff")
+
 
 ###-----------------###
 ### Construct bias ####
 ###-----------------###
 
-# Now let's get high richness and low sampling intensity - also created in processes/overlays/createSpeciesHotspots
-biasFiles <- list.files("overlays/data/hotspots", full.names = TRUE, pattern = "intensitet.tiff$")
-biasCompiled <- rast(biasFiles)
-names(biasCompiled) <- paste0(names(biasCompiled), "_innsamlingsintensitet")
-
+bias <- rast("data/allBiases.tiff")
 
 ###------------------###
 ### Protected areas ####
@@ -39,7 +36,7 @@ names(biasCompiled) <- paste0(names(biasCompiled), "_innsamlingsintensitet")
 
 # Download verneomrader from geonorge
 protected_areas_url <- paste0("https://nedlasting.geonorge.no/geonorge/Natur/ProtectedSites/GML/")
-keyDirectory <- "overlays/data/protectedAreas"
+keyDirectory <- "processes/overlays/data/protectedAreas"
 
 # scrape the data URL to obtain a list of zip files
 zip_links <- protected_areas_url %>%
@@ -53,7 +50,7 @@ zip_links <- protected_areas_url %>%
 # Else (quietly) download each zip file, unzip it, and then delete the zip file
 invisible(lapply(zip_links[1], function(link) {
   # specify the temporary zip file name
-  zip_name <- file.path("overlays", "temp.zip")
+  zip_name <- file.path("processes/overlays", "temp.zip")
   
   # download the zip file to the specified location
   download.file(link, destfile = zip_name, mode = "wb")
@@ -95,7 +92,7 @@ names(countyRaster) <- "counties"
 ###-----------------###
 
 # construct the URL containing the list of zip files for the selected format
-keyDirectory <- "overlays/data/kulturminner"
+keyDirectory <- "processes/overlays/data/kulturminner"
 url <- "https://nedlasting.geonorge.no/geonorge/Kulturminner/Kulturmiljoer/GML/"
 
 zip_links <- url %>%
@@ -109,7 +106,7 @@ zip_links[1]
 # Else (quietly) download each zip file, unzip it, and then delete the zip file
 invisible(lapply(zip_links[1], function(link) {
   # specify the temporary zip file name
-  zip_name <- file.path("overlays", "temp.zip")
+  zip_name <- file.path("processes/overlays", "temp.zip")
   
   # download the zip file to the specified location
   download.file(link, destfile = zip_name, mode = "wb")
@@ -133,7 +130,7 @@ names(culturalAreas) <- "culturalAreas"
 ###---------------###
 
 # Locally downloaded file, can be found at http://kartkatalog.miljodirektoratet.no
-a<- st_read("overlays/data/naturtyper/Naturtyper_nin_0000_norge_25833_GML.gml") %>%
+a<- st_read("processes/overlays/data/naturtyper/Naturtyper_nin_0000_norge_25833_GML.gml") %>%
   dplyr::select(prosjektområdenavn, dekningskartverdi)
 natureTypesVector <- terra::project(vect(a), hotspotLayers)
 
@@ -144,14 +141,14 @@ names(natureTypes) <- "natureTypes"
 ### Water regions/areas ####
 ###----------------------###
 
-a<- st_read("overlays/data/waterRegions/Vannomrader_0000_norge_25833_FILEGDB.gdb") %>%
+a<- st_read("processes/overlays/data/waterRegions/Vannomrader_0000_norge_25833_FILEGDB.gdb") %>%
   dplyr::select(navn)
 waterAreaVector <- terra::project(vect(a), hotspotLayers)
 
 waterAreas <- terra::rasterize(waterAreaVector, hotspotLayers, field = "navn")
 names(waterAreas) <- "waterAreas"
 
-a<- st_read("overlays/data/waterRegions/Vannregioner_0000_norge_25833_FILEGDB.gdb") %>%
+a<- st_read("processes/overlays/data/waterRegions/Vannregioner_0000_norge_25833_FILEGDB.gdb") %>%
   dplyr::select(navn)
 castedA <- st_cast(a, "MULTIPOLYGON") %>% st_collection_extract("POLYGON")
 waterRegionVector <- terra::project(vect(castedA), hotspotLayers)
@@ -166,12 +163,12 @@ names(waterRegions) <- "waterRegions"
 
 # These are large files and need to be downloaded locally.
 # Here is the link to the data: https://cmr.earthdata.nasa.gov/search/concepts/C2764708636-ORNL_CLOUD.html  
-belowGroundCarbon <- rast("overlays/data/carbonStorage/belowground_biomass_carbon_2010.tif")
+belowGroundCarbon <- rast("processes/overlays/data/carbonStorage/belowground_biomass_carbon_2010.tif")
 belowGroundCarbonNorway <- terra::project(belowGroundCarbon, hotspotLayers, method = "average")
 belowGroundCarbonNorway <- crop(belowGroundCarbonNorway, hotspotLayers[[1]], mask = T)
 names(belowGroundCarbonNorway) <- "belowgroundcarbon"
 
-aboveGroundCarbon <- rast("overlays/data/carbonStorage/aboveground_biomass_carbon_2010.tif")
+aboveGroundCarbon <- rast("processes/overlays/data/carbonStorage/aboveground_biomass_carbon_2010.tif")
 aboveGroundCarbonNorway <- terra::project(aboveGroundCarbon, hotspotLayers, method = "average")
 aboveGroundCarbonNorway <- crop(aboveGroundCarbonNorway, hotspotLayers[[1]], mask = T)
 names(aboveGroundCarbonNorway) <- "abovegroundcarbon"
@@ -184,9 +181,9 @@ names(aboveGroundCarbonNorway) <- "abovegroundcarbon"
 # The file is available through Miljodirektoratet at
 # https://kartkatalog.miljodirektoratet.no/Dataset/Details/3069
 
-if (length(list.files("overlays/data/hovedokosystemer")) == 0) {
-  a <- st_read("overlays/data/hovedokosystemer/Hovedokosystem_nedlasting/Hovedokosystem.gdb") %>%
-    dplyr::select("Hovedøkosystem")
+if (length(list.files("processes/overlays/data/hovedokosystemer")) == 0) {
+  a <- st_read("processes/overlays/data/hovedokosystemer/Hovedokosystem_nedlasting/Hovedokosystem.gdb") %>%
+    dplyr::select("ecotype")
   
   
   hovedokosystemVector <- terra::project(vect(a), hotspotLayers)
@@ -196,9 +193,9 @@ if (length(list.files("overlays/data/hovedokosystemer")) == 0) {
                                                              "","Innsjoer-tern", "Svaberg kyststrender og dyner", "Apent hav"))
   levels(hovedokosystems) <- translationTable
   names(hovedokosystems) <- "Hovedokosystems"
-  writeRaster(hovedokosystems, "overlays/data/hovedokosystemer/hovedokosystemer.tiff", overwrite = TRUE)
+  writeRaster(hovedokosystems, "processes/overlays/data/hovedokosystemer/hovedokosystemer.tiff", overwrite = TRUE)
 } else {
-  hovedokosystems <- rast("overlays/data/hovedokosystemer/hovedokosystemer.tiff")
+  hovedokosystems <- rast("processes/overlays/data/hovedokosystemer/hovedokosystemer.tiff")
 }
 
 ###-----------------------###
@@ -207,7 +204,7 @@ if (length(list.files("overlays/data/hovedokosystemer")) == 0) {
 
 # This one is also available online from Miljodirektoratet:
 # https://kartkatalog.miljodirektoratet.no/Dataset/Details/100
-inngrepsfrieOmrader <- read_sf("overlays/data/inngrepsfrieOmrader/statusPolygon.shp")
+inngrepsfrieOmrader <- read_sf("processes/overlays/data/inngrepsfrieOmrader/statusPolygon.shp")
 ifVect <- terra::project(vect(inngrepsfrieOmrader), hotspotLayers)
 ifRaster <- terra::rasterize(ifVect, hotspotLayers, field = "vsone")
 translationTable <- data.frame(ints = 0:3, categories = c("Sone1", "Sone2", NA, "Vill"))
@@ -223,7 +220,7 @@ names(ifRaster) <- "intactAreas"
 # https://land.copernicus.eu/en/products/corine-land-cover/lcc-2012-2018
 
 #unzip("overlays/data/landChangeCorine/Results/u2018_cha1218_v2020_20u1_raster100m.zip", exdir = "overlays/data/landChangeCorine")
-corineLandChange <- rast("overlays/data/landChangeCorine/u2018_cha1218_v2020_20u1_raster100m/DATA/U2018_CHA1218_12_V2020_20u1.tif")
+corineLandChange <- rast("processes/overlays/data/landChangeCorine/u2018_cha1218_v2020_20u1_raster100m/DATA/U2018_CHA1218_12_V2020_20u1.tif")
 corineLandChangeProjected <- terra::project(corineLandChange, hotspotLayers)
 corineLandChangeProjected <- crop(corineLandChangeProjected, hotspotLayers[[1]], mask = T)
 names(corineLandChangeProjected) <- "corineLandChange"
@@ -232,11 +229,11 @@ names(corineLandChangeProjected) <- "corineLandChange"
 ### Collate what we have up to here ####
 ###----------------------------------###
 
-rasterPackage3 <- c(hotspotLayers, biasCompiled, protectedAreas, culturalAreas, natureTypes, municipalityRaster, 
+rasterPackage3 <- c(hotspotLayers, bias, protectedAreas, culturalAreas, natureTypes, municipalityRaster, 
                        countyRaster, waterRegions, waterAreas, belowGroundCarbonNorway, aboveGroundCarbonNorway,
                        hovedokosystems, ifRaster, corineLandChangeProjected)
 namesToSet <- names(rasterPackage3)
-writeRaster(rasterPackage3, file = "overlays/data/rasterPackage3.tiff", overwrite = TRUE, names = namesToSet)
+writeRaster(rasterPackage3, file = "processes/overlays/data/rasterPackage3.tiff", overwrite = TRUE, names = namesToSet)
 
 
 importCheck <- rast("overlays/data/rasterPackage3.tiff")
