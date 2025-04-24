@@ -8,17 +8,37 @@ library(dplyr)
 library(terra)
 library(tidyr)
 library(ggridges)
+
 source("functions/importRedList.R")
 
-sourceDirectory <- "../BioDivMapping/data/run_2024-10-11/modelOutputs"
+args <- commandArgs(TRUE)
+
+if (length(args) != 0) {
+  # Set arguments
+  taxaList <- args[1]
+  # Set the working directory
+  setwd("~/HotspotsDerived")
+}
+
+sourceDirectory <- "../BioDivMapping/data/run_2025-01-06/modelOutputs"
 
 # Get necessary species lists
 redList <- importRedList(c("VU", "EN", "CR"))
 redList$simpleScientificName <- gsub(" ", "_", redList$species)
 modelNameList <- list.files(sourceDirectory, full.names = TRUE, recursive = TRUE, pattern = "richnessModel")
-taxaList <- unique(gsub('[[:digit:]]+', "", list.dirs(sourceDirectory, full.names = FALSE, recursive = FALSE)))
+#taxaList <- unique(gsub('[[:digit:]]+', "", list.dirs(sourceDirectory, full.names = FALSE, recursive = FALSE)))
 ansvarsArter <- readRDS("data/ansvarsArterList.RDS")
 threatenedSpecies <- readRDS("data/redList.RDS")
+
+insectList <- c("aquaticInsects", "beetles", "bugs", "butterfliesMoths", "cockroaches", "earwigs", "flies", 
+                "grasshopperLikeInsects", "hymenopterans", "netWingedInsects", "scorpionflies", "snakeflies",
+                "spiders")
+
+insectDF <- do.call(cbind, lapply(insectList, FUN = function(x) {
+  dfToUse <- readRDS(paste0("processes/covariateAnalysis/kalkinnholdEffects/", x, "CovariateList.RDS"))
+  dfToUse
+}))
+saveRDS(insectDF, "processes/covariateAnalysis/kalkinnholdEffects/insectCovariateList.RDS")
 
 ###------------------------------------------###
 ### 1. Produce continuous covariate effects ####
@@ -26,27 +46,34 @@ threatenedSpecies <- readRDS("data/redList.RDS")
 
 # Here we need to join all our covariate tables together in order to create density plots
 continuousCovariateList <- lapply(taxaList, FUN = function(taxa) {
-  modelNameListTaxa <- modelNameList[grep(paste0("/", taxa), modelNameList)]
+  if (taxa == "insects") {
+    modelNameListTaxa <-  grep(paste(insectList, collapse="|"), modelNameList, value = TRUE) 
+  } else {
+    modelNameListTaxa <- grep(paste0("/", taxa), modelNameList, value = TRUE)
+  }
+  
   segmentListed <- do.call(cbind, lapply(modelNameListTaxa, FUN = function(segment) {
     modelName <- segment
+    cat("\nRunning model ",gsub("../BioDivMapping/data/run_2025-01-06/modelOutputs/", "", segment))
     oneModel <- readRDS(modelName)
     oneModelSummary <- oneModel$summary.fixed
     speciesUsed <- oneModel$species$speciesTable$species
     rm("oneModel")
     gc()
     
-    tableSampleFull <- do.call(cbind, lapply(speciesUsed, FUN = function(sp) {
+    tableSampleFull <- lapply(speciesUsed, FUN = function(sp) {
+      if (stringr::str_count(sp, "_") > 1) {return(NA)}
       tableSample <- oneModelSummary[sub("^(([^_]*_){1}[^_]*).*", "\\1", row.names(oneModelSummary)) == sp,] 
       tableSample$var <- gsub(paste0(sp, "_"), "", row.names(tableSample))
       tableSample <- dplyr::select(arrange(tableSample, var), mean)
       tableSample
     }) 
-    )
-    row.names(tableSampleFull)
-    colnames(tableSampleFull) <- speciesUsed
-    tableSampleFull
+    tableSampleFull2 <- do.call(cbind, tableSampleFull[!is.na(tableSampleFull)])
+    #row.names(tableSampleFull)
+    colnames(tableSampleFull2) <- speciesUsed[!is.na(tableSampleFull)]
+    tableSampleFull2
   }))
-  fileName <- paste0("covariateAnalysis/continuousEffects/", taxa, "CovariateList.RDS")
+  fileName <- paste0("processes/covariateAnalysis/continuousEffects/", taxa, "CovariateList.RDS")
   saveRDS(segmentListed, fileName)
   print(taxa)
   taxa
@@ -68,6 +95,8 @@ corineCovariateList <- lapply(taxaList, FUN = function(taxa) {
   
   # Produce a list with all effects of covariate factor levels
   segmentListed <- lapply(modelNameListTaxa, FUN = function(segment) {
+    
+    cat("\nRunning model ",segment)
     modelName <- segment
     oneModel <- readRDS(modelName)
     oneModelSummaryCorine <- oneModel$summary.random[grep("land_cover_corine", names(oneModel$summary.random))]
@@ -118,8 +147,8 @@ corineCovariateList <- lapply(taxaList, FUN = function(taxa) {
   segmentListedCorine <- segmentListedCorine[,!duplicated(colnames(segmentListedCorine))]
   
   # Produce file names and save data
-  fileNameCorine <- paste0("covariateAnalysis/corineEffects/", taxa, "CovariateList.RDS")
-  fileNameKalkinnhold <- paste0("covariateAnalysis/kalkinnholdEffects/", taxa, "CovariateList.RDS")
+  fileNameCorine <- paste0("processes/covariateAnalysis/corineEffects/", taxa, "CovariateList.RDS")
+  fileNameKalkinnhold <- paste0("processes/covariateAnalysis/kalkinnholdEffects/", taxa, "CovariateList.RDS")
   saveRDS(segmentListedCorine, fileNameCorine)
   saveRDS(segmentListedKalk, fileNameKalkinnhold)
   print(taxa)
