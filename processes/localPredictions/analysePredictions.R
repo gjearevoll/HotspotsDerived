@@ -16,9 +16,9 @@ library(csmaps)
 
 
 # Import field data
-fieldWorkResults <- readRDS("localPredictions/data/fieldWorkResults.RDS")
+fieldWorkResults <- readRDS("processes/localPredictions/data/fieldWorkResults.RDS")
 
-processedSpecies <- gsub(".tiff", "", list.files("localPredictions/data/predictions/resolution500"))
+processedSpecies <- gsub(".tiff", "", list.files("processes/localPredictions/data/predictions/resolution500"))
 species <- intersect(processedSpecies, names(fieldWorkResults))
 
 ###-----------------------###
@@ -32,8 +32,8 @@ resolutions <- c("250", "500", "1000")
 
 datasets <- lapply(resolutions, FUN = function(x) {
 
-    fileList <- list.files(paste0("localPredictions/data/predictions/resolution", x), full.names = TRUE)
-    speciesNames <- gsub(".tiff", "" ,list.files(paste0("localPredictions/data/predictions/resolution", x)))
+    fileList <- list.files(paste0("processes/localPredictions/data/predictions/resolution", x), full.names = TRUE)
+    speciesNames <- gsub(".tiff", "" ,list.files(paste0("processes/localPredictions/data/predictions/resolution", x)))
     
     dataList <- lapply(fileList, rast) |>
       setNames(speciesNames)
@@ -59,7 +59,7 @@ ggplot()  +
 
 
 ### First we get two tables, one showing species richness at all points and another showing species presences
-fieldWork <- readRDS("localPredictions/data/fieldWorkResultsWide.RDS")
+fieldWork <- readRDS("processes/localPredictions/data/fieldWorkResultsWide.RDS")
 
 ###----------------------------------###
 ### 3. Produce comparative datasets ####
@@ -163,7 +163,7 @@ focalRaster <- lapply(resolutions, FUN = function(x) {
 combinedStats <- do.call(rbind, focalRaster)
 combinedStats$factorRes <- factor(combinedStats$res, levels=c("250", "500", "1000"))
 combinedStats$presence <- as.factor(combinedStats$observedPresence)
-levels(combinedStats$presence) <- c("Absent", "Present")
+levels(combinedStats$presence) <- c("Funn", "Ikke funn")
 
 # Comparison
 resolution <- "250"
@@ -171,11 +171,12 @@ summary(lm(data = focalRaster[[paste0("resolution", resolution)]], predictedPres
 ggplot(combinedStats, aes(x=factorRes, y=predictedPresence, fill = presence)) + 
   geom_boxplot() +
   scale_fill_manual(values=c("white", "grey")) +
-  ylim(c(0,0.02)) +
-  xlab("Resolution (m)") + 
-  #ylab("Predicted presence") + 
+  #ylim(c(0,1)) +
+  xlab("Oppløysing (m)") + 
+  ylab("Predikert førekomst") + 
   #xlab("") + 
-  ylab("") + 
+  #ylab("") + 
+  labs(fill = "") +
   ggtitle(gsub("_",  " ",speciesSelected)) 
 
 
@@ -200,10 +201,10 @@ df$res1 <- factor(df$res , levels=c('250', '500', '1000'))
 # df <- as.data.frame(comparisonTables[[1]]$richness) %>%
 #   filter(!is.na(predictedRichness))
 
-ggplot(df, aes(x=predictedRichness, y=observedRichness, colour=res1)) + 
+ggplot(df, aes(x=scaledRichness, y=observedRichness, colour=res1)) + 
   geom_point(size=2) +
   scale_colour_brewer(palette = "Set2") +
-  theme_bw() + labs(colour = "Resolution\n(metres)", x = "Observed richness", y = "Predicted richness (scaled)")
+  theme_bw() + labs(colour = "Oppløysing\n(m)", x = "Predikert rikdom (skalert)", y = "Observert rikdom")
 summary(lm(data = df, predictedRichness ~ observedRichness# + factor(res))
            ))
 

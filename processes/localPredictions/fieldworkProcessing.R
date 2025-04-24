@@ -16,9 +16,9 @@ sapply(list.files("functions", pattern = "\\.R$", full.names = TRUE), source)
 
 
 # Need to merge these two, creating locations IDs as we go
-fieldworkSurveyCodeB <- read.csv("localPredictions/data/rawFieldData/fieldworkSurveyCode2.csv", sep = ";")
+fieldworkSurveyCodeB <- read.csv("processes/localPredictions/data/rawFieldData/fieldworkSurveyCode2.csv", sep = ";")
 fieldworkSurveyCodeB$RuteID <- paste0(1:nrow(fieldworkSurveyCodeB), "B")
-fieldworkSurveyCodeA <- read.csv("localPredictions/data/rawFieldData/fieldworkSurveyCode.csv", sep = ";") %>%
+fieldworkSurveyCodeA <- read.csv("processes/localPredictions/data/rawFieldData/fieldworkSurveyCode.csv", sep = ";") %>%
   dplyr::select(colnames(fieldworkSurveyCodeB))
 fieldworkSurveyCodeA$RuteID <- paste0(fieldworkSurveyCodeA$RuteID, "A")
 
@@ -54,11 +54,11 @@ fieldworkSurveyCode2 <- fieldworkSurveyCode[,c("RuteID", "date", "Xdecimal", "Yd
 fieldworkSurveyCode2 <- fieldworkSurveyCode2[complete.cases(fieldworkSurveyCode2),]
 
 # Now import our results and assign the same locationIDs
-fieldworkSurveyResultsA <- read.csv("localPredictions/data/rawFieldData/fieldworkSurveyResults.csv", sep = ";")
+fieldworkSurveyResultsA <- read.csv("processes/localPredictions/data/rawFieldData/fieldworkSurveyResults.csv", sep = ";")
 fieldworkSurveyResultsA[is.na(fieldworkSurveyResultsA)] <- 0
 fieldworkSurveyResultsA$RuteID <- paste0(fieldworkSurveyResultsA$RuteID, "A")
 
-fieldworkSurveyResultsB <- read.csv("localPredictions/data/rawFieldData/fieldworkSurveyResults2.csv", sep = ";")
+fieldworkSurveyResultsB <- read.csv("processes/localPredictions/data/rawFieldData/fieldworkSurveyResults2.csv", sep = ";")
 fieldworkSurveyResultsB[is.na(fieldworkSurveyResultsB)] <- 0
 fieldworkSurveyResultsB$RuteID <- paste0(1:52, "B")
 
@@ -78,8 +78,8 @@ df1 <- st_as_sf(x = fieldworkSurvey,
 df1 <- st_transform(df1, crs = projCRS)
 
 # And now move on to Ivar's data
-load("localPredictions/data/rawFieldData/trondelagFieldDataSurvey.rda")
-load("localPredictions/data/rawFieldData/trondelagFieldDataCode.rda")
+load("processes/localPredictions/data/rawFieldData/trondelagFieldDataSurvey.rda")
+load("processes/localPredictions/data/rawFieldData/trondelagFieldDataCode.rda")
 colnames(Y_oekosystem_troendelag)[3:ncol(Y_oekosystem_troendelag)] <- gsub(" ","_",colnames(Y_oekosystem_troendelag)[3:ncol(Y_oekosystem_troendelag)])
 
 mergedData <- merge(StudyDesign_ET, Y_oekosystem_troendelag, all.y = TRUE, by = "pointID")
@@ -107,7 +107,7 @@ adj <- matrix(as.numeric(as.numeric(adj)) < 25000, nrow = nrow(adj))
 g <- graph_from_adjacency_matrix(adj)
 fieldworkSurveyResults$group <- factor(components(g)$membership)
 
-saveRDS(fieldworkSurveyResults, "localPredictions/data/fieldWorkResults.RDS")
+saveRDS(fieldworkSurveyResults, "processes/localPredictions/data/fieldWorkResults.RDS")
 
 ### Now we also need to aggregate species richness to different resolutions
 
@@ -138,3 +138,8 @@ duplicatedSpecies <- completeSpecies[duplicated(completeSpecies$GBIFName),]
 
 saveRDS(dfWide, "localPredictions/data/fieldWorkResultsWide.RDS")
 
+dfLongPrintOut <- as.data.frame(st_drop_geometry(st_as_sf(dfLong)))
+dfLongPrintOut$decimalLatitude <- st_coordinates(st_transform(st_as_sf(dfLong), 4326))[,1]
+dfLongPrintOut$decimalLongitude <- st_coordinates(st_transform(st_as_sf(dfLong), 4326))[,2]
+write.csv(dfLongPrintOut, "testForChatIPT.csv")
+dfLongPrintOut[dfLongPrintOut$species == "Acer_platanoides" & dfLongPrintOut$presence == 1,]

@@ -2,7 +2,7 @@
 ### 1. Import data ####
 ###-----------------###
 
-print("Preparing data for model prediction.")
+cat("Preparing data for model prediction.\n")
 
 library(PointedSDMs)
 library(dplyr)
@@ -12,23 +12,36 @@ library(terra)
 library(stringr)
 library(intSDM)
 
+
+args <- commandArgs(TRUE)
+
+if (length(args) != 0) {
+  # Set arguments
+  predRes <- as.integer(args[1])
+  # Set the working directory
+  setwd("~/HotspotsDerived")
+}
+
+# predRes <- 250
+
 # Import local functions
 sapply(list.files("../BioDivMapping/functions", pattern = "\\.R$", full.names = TRUE), source)
 
 # model output folder
-modelFolderName <- paste0("localPredictions/data/modelObjects")
+modelFolderName <- paste0("processes/localPredictions/data/modelObjects")
 
 # import project control parameters into the environment
 focalTaxa <- read.csv(file.path("data/focalTaxa.csv"), header = T) %>%
   filter(taxa %in% "vascularPlants")
-predRes <- 250
-taxaFolder <- paste0("localPredictions/data/predictions/resolution", predRes, "/")
+taxaFolder <- paste0("processes/localPredictions/data/predictions/resolution", predRes, "/")
 for (folder in taxaFolder) {
   if (!file.exists(folder)) {
     dir.create(folder)
   }}
 
-environmentalDataListAll <- rast("localPredictions/data/environmentalDataImported.tiff")
+cat("Importing and editing environmental data\n")
+
+environmentalDataListAll <- rast("processes/localPredictions/data/environmentalDataImported.tiff")
 
 levels(environmentalDataListAll$land_cover_corine)[[1]][,2][is.na(levels(environmentalDataListAll$land_cover_corine)[[1]][,2])] <- "Water bodies"
 levels(environmentalDataListAll$land_cover_corine)[[1]][,2][28] <- "Moors and heathland"
@@ -43,17 +56,18 @@ environmentalDataListAll$summer_temperature_squared <- environmentalDataListAll$
 # Import fitted models
 models <- list.files(modelFolderName, pattern = "reducedModel", recursive = TRUE, full.names = TRUE)
 
-
+cat("Creating mesh for model\n")
 mesh <- list(cutoff = 176, max.edge=c(26850, 175903) * 2, offset= c(1760, 1200) * 10)
 
 # Import species which we need data for
-fieldWorkResults <- readRDS("localPredictions/data/fieldWorkResults.RDS") %>%
+cat("Defining species to run\n")
+fieldWorkResults <- readRDS("processes/localPredictions/data/fieldWorkResults.RDS") %>%
   select(-survey)
 speciesMeans <- colMeans(st_drop_geometry(fieldWorkResults[,2:435]))
 speciesToRun <- names(speciesMeans)[speciesMeans > 0.01]
 
 # Check extents of various groups
-lapply(unique(fieldWorkResults$group), FUN = function(g) {
+groupExtents <- lapply(unique(fieldWorkResults$group), FUN = function(g) {
   ext(fieldWorkResults[fieldWorkResults$group == g,])
 })
 
@@ -73,6 +87,7 @@ boxedLocations <-list(c(183000, 6852000, 190000, 6870000) |> #7 by 18
                         setNames(c("west", "south", "east", "north")))
 
 # Get env data in
+cat("Importing and cropping environmental data\n")
 environmentalDataList <- lapply(boxedLocations, FUN = function(box) {
   regionGeometry <- defineRegion("box", extentCoords =  box)
   lapply(environmentalDataListAll, FUN = function(x) {
@@ -93,6 +108,7 @@ types <- sapply(seq(nlyr(environmentalDataList[[1]])), function(x){
   environmentalDataList[[1]][[x]][1] %>% unlist %>% class
 })
 # define template prediction raster
+cat("Defining prediction grid\n")
 predGrid <- lapply(environmentalDataList, FUN = function(envData) {
   
   predRast <-  terra::rast(ext(envData), res = c(predRes, predRes), crs = crs(st_crs(25833)$wkt))
@@ -131,7 +147,8 @@ modelOutputs <- 'Richness'
 
 # Have done up to 138
 
-for(i in seq_along(models)[138:145]){
+cat("Starting model run")
+for(i in seq_along(models)){
   
   predictionInterceptDataset <- "ANOData"
   focalSampleSize <- 0.25
@@ -171,7 +188,7 @@ for(i in seq_along(models)[138:145]){
       as.data.frame(na.rm = FALSE) %>% 
       replicate(length(speciesUsed) + 1, ., simplify = FALSE) %>% 
       reduce(cbind) %>% 
-      bind_cols(geometries[[p]]) %>% 
+      bind_cols(geometries[[p]], .name_repair = "unique_quiet") %>% 
       st_sf() %>% 
       na.omit()
     
@@ -212,7 +229,7 @@ for(i in seq_along(models)[138:145]){
       spPred <- rasterize(spPred, predGrid[[pd]], names(spPred)[!names(spPred) %in% names(predData[[pd]])])
     })
     predictionsMerged <- do.call(merge, predictionsMade)
-    writeRaster(predictionsMerged, paste0("localPredictions/data/predictions/resolution", predRes, "/", sp, ".tiff"), overwrite = TRUE)
+    writeRaster(predictionsMerged, paste0("processes/localPredictions/data/predictions/resolution", predRes, "/", sp, ".tiff"), overwrite = TRUE)
   }
   
 }
