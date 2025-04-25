@@ -23,13 +23,13 @@ library(stringr)
 library(terra)
 
 # # Import dropdown list for taxa
-ddList <- readRDS("data/ddList.RDS")
-namesFromGroups <- readRDS("data/namesFromGroups.RDS")
+ddList <- readRDS("data/importedData/ddList.RDS")
+namesFromGroups <- readRDS("data/importedData/namesFromGroups.RDS")
 
-choiceList <- c("Norway", "50", "54") |> 
-  setNames(c("Norway", "Trondelag", "Finnmark"))
-taxaChoiceList <- c("hymenopterans", "birds", "vascularPlants") |> 
-  setNames(c("Hymenopterans", "Birds", "Vascular Plants"))
+choiceList <- c("Norway", "50", "54", "46", "34") |> 
+  setNames(c("Norge", "Trøndelag", "Finnmark", "Vestland", "Innlandet"))
+taxaChoiceList <- c("insects", "birds", "vascularPlants", "lichens", "fungi") |> 
+  setNames(c("Insekt", "Fugler", "Karplanter", "Lav", "Sopp"))
 
 terraOptions(memmax = 0.9)
 
@@ -46,10 +46,10 @@ shinyUI(
     # SIDEBAR
     dashboardSidebar(
       sidebarMenu(id = "sidebar",
-                  menuItem("Home", tabName = "home", icon = icon("house")),
-                  menuItem("Species Richness", tabName = "speciesRichness", icon = icon("binoculars")),
-                  menuItem("Species Beta Diversity", tabName = "betaDiversity", icon = icon("worm")),
-                  menuItem("Individual Species Data", tabName = "individuals", icon = icon("cloud-sun")),
+                  menuItem("Hjemmeside", tabName = "home", icon = icon("house")),
+                  menuItem("Artsrikhet", tabName = "speciesRichness", icon = icon("binoculars")),
+                  menuItem("Betadiversitet", tabName = "betaDiversity", icon = icon("worm")),
+                  menuItem("Individuelle artsforekomst", tabName = "individuals", icon = icon("cloud-sun")),
                   menuItem("Hotspots", tabName = "hotspots", icon = icon("cloud-sun")),
                   menuItem("Metadata", tabName = "meta", icon = icon("cloud-sun"))
       )
@@ -60,26 +60,29 @@ shinyUI(
       tabItems(
         tabItem(tabName = "home",
                 fluidRow(box(landingPageText1(), width = 12)),
-                fluidRow(box(landingPageText2(), title = "Technical Resources", width = 12, 
+                fluidRow(box(landingPageText2(), title = "Teknisk ressurser", width = 12, 
                              collapsible = TRUE, collapsed = TRUE))),
         
         tabItem(tabName = "speciesRichness",
                 fluidRow(
                   column( width = 3, offset = 0,
                           fluidRow(
-                            box(width = 12,title = "Select species",
-                                selectInput(inputId = "taxa", label = "Taxa:",
-                                            selected = "hymenopterans",
+                            box(width = 12,title = "Velg artsgruppe",
+                                selectInput(inputId = "taxa", label = "Artsgruppe:",
+                                            selected = "birds",
                                             choices = taxaChoiceList),
-                                selectInput(inputId = "speciesGroup", label = "Species to use:",
+                                selectInput(inputId = "speciesGroup", label = "Artsutvalg:",
                                             selected = "allspecies",
-                                            choices = c("All species" = "allspecies",
-                                                        "Threatened species" = "threatenedspecies",
-                                                        "Species of national responsibility" = "ansvarsarter")),
-                                selectInput(inputId = "statistic", label = "Statistic:",
+                                            choices = c("Alle arter" = "allspecies",
+                                                        "Trua arter" = "threatenedspecies",
+                                                        "Ansvarsarter" = "ansvarsarter")),
+                                selectInput(inputId = "statistic", label = "Statistikk:",
                                             selected = "mean",
-                                            choices = c("Species richness" = "skalertRikhet",
-                                                        "Uncertainty" = "skalertUsikkerhet"))))
+                                            choices = c("Artsrikdom" = "skalertRikhet",
+                                                        "Usikkerhet" = "skalertUsikkerhet")),
+                                selectInput(inputId = "region", label = "Region:",
+                                            selected = "Norge",
+                                            choices = choiceList)))
                   ),
                   column(
                     width = 5, offset = 0,
@@ -91,19 +94,19 @@ shinyUI(
                           textOutput("figureCaption1"))),
                     fluidRow(
                       box(width = 12,
-                          title = "What does species richness mean?",
+                          title = "Hva betyr ‘artsrikhet’?",
                           speciesRichnessText1(), collapsible = TRUE,
                           collapsed = TRUE)
                     ),
                     fluidRow(
                       box(width = 12,
-                          title = "How do you measure uncertainty?",
+                          title = "Hvordan måles usikkerhet?",
                           speciesRichnessText2(), collapsible = TRUE,
                           collapsed = TRUE)
                     ),
                     fluidRow(
                       box(width = 12,
-                          title = "How precise is this data?",
+                          title = "Hvor nøyaktig er disse produktene?",
                           speciesRichnessText3(), collapsible = TRUE,
                           collapsed = TRUE)
                     ))
@@ -114,12 +117,12 @@ shinyUI(
                 fluidRow(
                   column( width = 3, offset = 0,
                           fluidRow(
-                            box(width = 12,title = "Select species group",
-                                selectInput(inputId = "taxaBeta", label = "Taxa:",
+                            box(width = 12,title = "Velg artsgruppe",
+                                selectInput(inputId = "taxaBeta", label = "Artsgruppe:",
                                             selected = "birds",
                                             choices = taxaChoiceList[-1]),
-                                selectInput(inputId = "regionBeta", label = "Region",
-                                            selected = "Norway",
+                                selectInput(inputId = "regionBeta", label = "Region:",
+                                            selected = "Norge",
                                             choices = choiceList)))
                   ),
                   column(
@@ -132,13 +135,13 @@ shinyUI(
                           textOutput("figureCaption1"))),
                     fluidRow(
                       box(width = 12,
-                          title = "What does beta diversity mean?",
+                          title = "Hva betyr betadiversitet?",
                           betaDiversityText1(), collapsible = TRUE,
                           collapsed = TRUE)
                     ),
                     fluidRow(
                       box(width = 12,
-                          title = "A note regarding beta diversity in Norway",
+                          title = "Om betadiversitet i Norge",
                           betaDiversityText2(), collapsible = TRUE,
                           collapsed = TRUE)
                     ))
@@ -149,23 +152,23 @@ shinyUI(
                 fluidRow(
                   column( width = 3, offset = 0,
                           fluidRow(
-                            box(width = 12,title = "Select species group",
-                                selectInput(inputId = "taxaIndivid", label = "Taxa:",
-                                            selected = "hymenopterans",
+                            box(width = 12,title = "Velg artsgruppe",
+                                selectInput(inputId = "taxaIndivid", label = "Artsgruppe:",
+                                            selected = "birds",
                                             choices = taxaChoiceList),
-                                selectInput(inputId = "species", label = "Species:",
-                                            selected = "Bombus alpinus (Linnaeus, 1758)",
+                                selectInput(inputId = "species", label = "Art:",
+                                            selected = "Calcarius lapponicus (Linnaeus, 1758)",
                                             choices = ddList[[1]]),
                                 selectInput(inputId = "regionIndivid", label = "Region:",
                                             selected = "Norway",
                                             choices = choiceList),
-                                selectInput(inputId = "statisticIndivid", label = "Statistic:",
+                                selectInput(inputId = "statisticIndivid", label = "Statistikk:",
                                             selected = "speciesRichness",
-                                            choices = c("Species richness" = "probability",
-                                                        "Uncertainty" = "uncertainty"))))
+                                            choices = c("Forekomst sannsynlighet" = "probability",
+                                                        "Usikkerhet" = "uncertainty"))))
                           ,
                           fluidRow(
-                            box(width = 12, title = "Species Info",
+                            box(width = 12, title = "Artsinformasjon",
                                 collapsible = TRUE,
                                 htmlOutput("textBox1"),
                                 p(),
@@ -182,7 +185,7 @@ shinyUI(
                           textOutput("figureCaption1"))),
                     fluidRow(
                       box(width = 12,
-                          title = "How do we calculate individual species probabilities?",
+                          title = "Hvordan beregnes sannsynlighet for artsforekomst?",
                           individualSpeciesText1(), collapsible = TRUE,
                           collapsed = TRUE)
                     )
@@ -195,23 +198,24 @@ shinyUI(
                   column( width = 3, offset = 0,
                           fluidRow(
                             box(width = 12,title = "Select species",
-                                selectInput(inputId = "taxaHotspots", label = "Taxa:",
-                                            selected = "beetles",
+                                selectInput(inputId = "taxaHotspots", label = "Artsgruppe:",
+                                            selected = "birds",
                                             choices = taxaChoiceList),
-                                selectInput(inputId = "speciesGroupHotspots", label = "Species to use:",
+                                selectInput(inputId = "speciesGroupHotspots", label = "Artsutvalg:",
                                             selected = "allspecies",
-                                            choices = c("All species" = "allspecies",
-                                                        "Threatened species" = "threatenedspecies",
-                                                        "Species of national responsibility" = "ansvarsarter")),
+                                            choices = c("Alle arter" = "allspecies",
+                                                        "Trua arter" = "threatenedspecies",
+                                                        "Ansvarsarter" = "ansvarsarter")),
                                 selectInput(inputId = "regionHotspots", label = "Region:",
-                                            selected = "Norway",
+                                            selected = "Norge",
                                             choices = choiceList))),
                           fluidRow(
-                            box(collapsible = TRUE, collapsed = TRUE, width = 12, title = "Select overlay",
-                                selectInput(inputId = "overlayHotspots", label = "Overlay:",
+                            box(collapsible = TRUE, collapsed = TRUE, width = 12, title = "Velg ekstra lag",
+                                selectInput(inputId = "overlayHotspots", label = "Lag:",
                                             selected = "none",
-                                            choices = c("none", "intactAreas")),
-                                sliderInput(inputId = "overlayLimitHotspots", label = "Minimum size of area to include", 
+                                            choices = c("None" = "none", 
+                                                        "Inngrepsfrie områder" = "intactAreas")),
+                                sliderInput(inputId = "overlayLimitHotspots", label = "Minste areal", 
                                             min = 0, max = 4500, value = 0))
                           )
                   ),
@@ -225,7 +229,7 @@ shinyUI(
                           textOutput("figureCaption1"))),
                     fluidRow(
                       box(width = 12,
-                          title = "Defining a hotspot",
+                          title = "Definisjon av en Hotspot",
                           hotspotsText1(), collapsible = TRUE,
                           collapsed = TRUE)
                     ))
@@ -235,18 +239,17 @@ shinyUI(
                 fluidRow(column(width =3,
                                 box(width = 12,title = "Select species",
                                     selectInput(inputId = "metaTaxa", label = "Taxa:",
-                                                selected = "hymenopterans",
+                                                selected = "birds",
                                                 choices = taxaChoiceList))),
-                                
-                                column(9, htmlOutput("inc")
-                                ))
-                )
-                
-                
+                         
+                         column(9, htmlOutput("inc")
+                         ))
         )
+        
+        
       )
     )
   )
-  
-  
-  
+)
+
+
