@@ -30,6 +30,8 @@ listProbFiles <- list.files(ogDirectory, full.names = TRUE)[grep("probability" ,
 
 norwayBorder2 <- sf::read_sf("../BioDivMapping/data/external/norge_border/Noreg_polygon.shp")
 
+baseRaster <- rast(listProbFiles[1])
+
 # Code for bird groups
 birdSubgroups <- c("groundNesters", "waders", "woodpeckers")
 if (groupsToProcess %in% birdSubgroups) {
@@ -56,10 +58,10 @@ for (focalGroup in groupsToProcess) {
   }
   
   # Import probabilities for different species and cut down to ansvarsarter
-  probabilites <- rast(listProbFilesGroup)
-  norwayBorderProjected <- terra::project(vect(norwayBorder2), probabilites)
-  speciesToMap <- intersect(names(probabilites), refinementList)
-  ansvarsarterProbs <- probabilites[[speciesToMap]]
+  probabilities <- rast(listProbFilesGroup)
+  norwayBorderProjected <- terra::project(vect(norwayBorder2), probabilities)
+  speciesToMap <- intersect(names(probabilities), refinementList)
+  ansvarsarterProbs <- probabilities[[speciesToMap]]
   ansvarsarterProbs <- crop(ansvarsarterProbs, norwayBorderProjected, mask = T)
   
   # Convert everything above 0.7 to a 1 (this is where processing time starts to blow out)
@@ -72,6 +74,7 @@ for (focalGroup in groupsToProcess) {
   focalAttempt <- terra::focal(speciesAssumed, w = 4*resolutionInKm+1, fun = any, na.rm = TRUE)
   focalRichness <- sum(focalAttempt)
   focalBeta <- 1-localRichness/focalRichness
+  focalBeta <- project(focalBeta, baseRaster, method = "mode")
   writeRaster(focalBeta, paste0("processes/betaDiversity/data/",focalGroup, resolutionInKm ,"betaDiversity.tiff"), 
               overwrite = TRUE)
 }
