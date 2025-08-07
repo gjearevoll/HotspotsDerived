@@ -4,6 +4,8 @@
 ### 1. Data loading ####
 ###------------------###
 
+library(dplyr)
+
 sourceDirectory <- "../BioDivMapping/data/run_2025-01-06/modelOutputs"
 
 modelNameList <- list.files(sourceDirectory, full.names = TRUE, recursive = TRUE, pattern = "richnessModel")
@@ -96,21 +98,39 @@ stop("Script done")
 ### 3. Collate this data ####
 ###-----------------------###
 
-results <- as.data.frame(do.call(rbind, lapply(taxaToRun, FUN = function(x) {
+ansvarsArterList <- readRDS("data/ansvarsArterList.RDS")
+redList <- readRDS("data/redList.RDS")
+
+translationTable <- read.csv("data/taxaTranslations.csv")
+
+fullResults <- as.data.frame(do.call(rbind, lapply(taxaToRun, FUN = function(x) {
   
   results <- readRDS(paste0("data/modelOutputs/modelStats/vars_", x, ".RDS"))
-  results$totalVar <- apply(results[,1:5], 1, sum)
-  results$varFixed <- apply(results[,2:4], 1, sum)
-  results$varExplained <- results$varFixed/results$totalVar
-  meanResults <- mean(results$varExplained)
-  sdResults <- sd(results$varExplained)
-  seResults <- sd(results$varExplained)/sqrt(length(results$varExplained))
-  results2 <- c(meanResults, sdResults, seResults)
-  names(results2) <- c("mean", "sd", "se")
-  results2
+  
+  resultsTable <- do.call(rbind, lapply(1:3, FUN = function(y) {
+    if (y == 2) {
+      resultsFiltered <- results[results$species %in% gsub(" ", "_", redList$species),]
+    } else if (y == 3) {
+      resultsFiltered <- results[results$species %in% gsub(" ", "_", ansvarsArterList$VitenskapeligNavn),]
+    } else {resultsFiltered <- results}
+    
+    resultsFiltered$totalVar <- apply(resultsFiltered[,1:5], 1, sum)
+    resultsFiltered$varFixed <- apply(resultsFiltered[,2:4], 1, sum)
+    resultsFiltered$varExplained <- resultsFiltered$varFixed/resultsFiltered$totalVar
+    meanResults <- mean(resultsFiltered$varExplained)
+    sdResults <- sd(resultsFiltered$varExplained)
+    seResults <- sd(resultsFiltered$varExplained)/sqrt(length(resultsFiltered$varExplained))
+    results2 <- c(meanResults, sdResults, seResults)
+    names(results2) <- c("mean", "sd", "se")
+    results2
+  })) %>% as.data.frame()
+  resultsTable$species <- translationTable$nynorsk[translationTable$engelsk == x]
+  resultsTable$mgmtGroup <- c("Alle artar", "Trua artar", "Ansvarsartar")
+  resultsTable
 })))
-results$species <- taxaToRun
-saveRDS(results, "modelEvalutaion.RDS")
+
+write.csv(fullResults, "data/modelEvaluation.csv")
+saveRDS(results, "modelEvaluation.RDS")
 
 # 
 # ### Measure spatial autocorrelation
