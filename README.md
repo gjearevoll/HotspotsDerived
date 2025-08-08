@@ -22,32 +22,74 @@ the pathway from one to the other defined early on.
 
 The folders include:
 
-### Field validation
+### Processes
 
-This folder includes three scripts. One which processes the filed results initially (fieldWorkProcessing.R), one which uses
-our models to produce predictions at different resolutions in the regions where the fieldwork took place (localPredictions.R),
-and another which comparies the observed species data from the fieldwork and the predicted species data.
+This folder contains sub-folders, each of which is a series of scripts and external data which corresponds to a derived product.
 
-### Overlays
+#### Beta diversity
 
-This directory involves one script which imports our species richness estimates and then turns them into layers of a raster. It
-then combines them with a large range of other raster data (see the individual README file for more details) so that these
-can easily be visualised in conjunction with our Hotspots data. The data folder here includes different subfolders, each with external
-data that is added as layers of our final raster. Some of the raw data has been added, some is simply too big to fit on GitHub.
+Here we generate beta diversity values for all species. generateBetaDiversity.R creates the raster layers for each species group,
+and createBetaDiversityPackage.R brings them together in one tiff file. It's worth noting that this is a very computationally heavy 
+function, and currently we only do this for ansvarsarter.
 
-### Covariate analysis
+#### Field validation (localPredictions)
+
+This folder includes four scripts. One which processes the field results initially (fieldWorkProcessing.R), one which uses
+our models (imported via importModels.R) to produce predictions at different resolutions in the regions where the fieldwork took place 
+(predictionGenerations.R), and another which comparies the observed species data from the fieldwork and the predicted species data 
+(analysePredictions.R).
+
+#### Overlays
+
+This directory involves one script which imports our species richness estimates and then turns them into hotspot layers, to be exported
+and then combined into a raster with other environmental layers for visual and statistical comparison. The data folder here includes 
+different subfolders, some with external data that is added as layers of our final raster. Some of the raw data has been added, some is 
+simply too big to fit on GitHub.
+
+#### Covariate analysis
 
 Here we download all our reduced models for a species group in order to find the overall effect of each environmental covariate
 on the entire species group. The script simply involves compiling the effects across models and applying a density function to each
 environmental effect.
 
-### Beta diversity
+#### Species numbers
 
-This is one script which produces an estimate for beta diversity across all ansvarsarter. The results are then fed into our overlays 
-script above as a layer of this output.
+This is a quick calculation which gives us statistics on the number of species used in modelling and the number of observations for these
+species.
 
-### Model resizing
+### Functions
 
-The model outputs which we get from the INLA-reliant models are large, often around half a gigabyte. When one of these model outputs
-is required for every 10 species  segment across 1500 species, they start making any model-wide operations excessively slow. As such,
-here we apply a function that imports each model, cuts out a huge amount of unnecessary data, and saves space.
+This folder contains a series of functions (almsot all carried over from the BioDivMapping repo) that are necessary for some of the
+process scripts.
+
+### Data
+
+Here we store all external data necessary for creating the derived products, from vernacular names, Norwegian translations and
+alien species lists to Norwegian borders shapefiles and lake/city maps. We also stor data that needs to be uploaded in this folder,
+and we import data produced by the BioDivMapping repository here.
+
+### communicationsPackageHotspots
+
+All code and data necessary for the Shiny app is stored here. All data for the app is initially imported using the importShinyData.R 
+app.
+
+### Visualisations
+
+These R scripts produce visualisations for the Hotspot reports. A full list is given below.
+
+- analyseOverlays.R
+  - All bar plots comparing species richnesses in areas ofinterest (protected areas, hovedøkosystemer, etc.)
+- betaDiversity.R
+  - Beta diversity maps
+- covariateEffectPlots.R
+  - Density plots showing effects of both continuous and covariate variables on different species groups
+- hotspotsFigures.R
+  - Hotspot maps for each species groups
+  - Probability of hotspot maps for each species group
+- richnessMaps.R
+  - Richness maps
+  - Uncertainty maps
+  - Sampling density maps
+  - Sampling density maps inside hotspots
+
+
