@@ -108,9 +108,13 @@ saveRDS(names(plantShapeFileSampleSpecies), "processes/fieldValidation/data/indS
 stop("Automated section of script completed")
 
 # Richness analysis
+library(ggplot2)
+
 plantRichness <- vect("processes/fieldValidation/data/predictedRichness.shp")
 plantRichness <- plantRichness[plantRichness$richness >= 0,]
-plot(plantRichness$richness, plantRichness$predictedR)
+
+# Remove all regions too small for analysis and plot
+plantRichness <- plantRichness[plantRichness$area >= 0.25,]
 plantRichnessDF <- as.data.frame(plantRichness)
 ggplot(plantRichnessDF, aes(x=richness, y=predictedR)) + 
   labs(x = "Observed richness", y = "Predicted richness") +
@@ -124,11 +128,11 @@ names(plantPresences) <- readRDS("processes/fieldValidation/data/indSpeciesLayer
 # Get species names
 speciesNames <- gsub("_observed", "", grep("observed", names(plantPresences), value = T))
 
-focalSpecies <- speciesNames[5]
+# Plot individual species 
+focalSpecies <- speciesNames[11]
 plantInds <- plantPresences[[grep(focalSpecies, names(plantPresences))]]
 colnames(plantInds) <- c("predicted", "observed")
 plantInds <- plantInds[plantInds$observed %in% c(0,1),]
-library(ggplot2)
 plantInds$observed <- as.factor(plantInds$observed)
 ggplot(plantInds, aes(x=observed, y=predicted)) + 
   geom_boxplot()
