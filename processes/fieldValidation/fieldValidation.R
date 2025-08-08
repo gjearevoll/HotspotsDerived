@@ -14,9 +14,16 @@ if (length(args) != 0) {
 
 #runDate <- "2025-01-06"
 
-# Get total species richness for an area
-events <- read.delim("processes/fieldValidation/data/vascularPlantsFieldNotesGBIF/event.txt")
-occurrences <- read.delim("processes/fieldValidation/data/vascularPlantsFieldNotesGBIF/occurrence.txt")
+# Get total species richness for an area using the NTNU Vascular Plant Field Notes
+
+if (!file.exists("processes/fieldValidation/data/GBIFDownload/event.txt")) {
+  destFile <- "processes/fieldValidation/data/GBIFDownload.zip"
+  download.file("https://gbif.vm.ntnu.no/archive.do?r=vascularplantfieldnotes", destFile, mode = "wb", timeout = 400)
+  unzip(destFile, exdir = "processes/fieldValidation/data/GBIFDownload")
+}
+
+events <- read.delim("processes/fieldValidation/data/GBIFDownload/event.txt")
+occurrences <- read.delim("processes/fieldValidation/data/GBIFDownload/occurrence.txt")
 
 # Get all species surveyed
 speciesSurveyed <- unique(occurrences$scientificName)
